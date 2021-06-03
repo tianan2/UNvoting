@@ -1,0 +1,48 @@
+---
+title: "Untitled"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE, message=FALSE}
+library(tidyverse)
+theme_set(theme_light())
+options(scipen = 999)
+
+gdp_percapita_2018 <- gdp_percapita %>% 
+  filter(year == 2018, 
+         !is.na(NY.GDP.PCAP.PP.CD)) 
+
+epi_raw <- read_csv("~/Desktop/データセット/environmental-performance-index/epi2020results20200604.csv")
+```
+
+```{r}
+library(ggrepel)
+
+selected_gdp <- gdp_percapita_2018 %>% select(country, NY.GDP.PCAP.PP.CD, iso3c)
+countries <- c("India", "China", "Indonesia", "South Korea", "Russia")
+
+epi_joined <- epi_raw %>% 
+  left_join(selected_gdp, by = c("iso" = "iso3c")) 
+
+epi_filtered <- epi_joined %>% 
+  filter(NY.GDP.PCAP.PP.CD < 80000) 
+
+ggplot(epi_filtered, aes(NY.GDP.PCAP.PP.CD, EPI.new, label = country.x)) +
+  geom_text_repel(
+    data = filter(epi_filtered, country.x %in% countries | NY.GDP.PCAP.PP.CD > 40000),
+    nudge_y = 1,
+    segment.size = 0.2, 
+    segment.color = "grey50", 
+    direction = "x") +
+  geom_point(color = ifelse(epi_filtered$country.x %in% countries, "red", "black")) +
+  geom_smooth(method = "lm", se = F) 
+  
+  
+```
+

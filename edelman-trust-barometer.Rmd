@@ -1,0 +1,98 @@
+---
+title: "edelman-trust-barometer"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE, message=FALSE}
+library(tidyverse)
+library(readxl)
+library(WDI)
+theme_set(theme_light())
+
+edelman_2019 <- read_excel("~/Desktop/データセット/edelman-trust-barometer.xlsx", sheet = 1) %>% select(country, starts_with("2019_")) %>% mutate(country = str_to_title(country))
+
+edelman_2020 <- read_excel("~/Desktop/データセット/edelman-trust-barometer.xlsx", sheet = 2) %>% mutate(country = str_to_title(country))
+```
+
+```{r}
+edelman_2019 %>% 
+  gather(category, value, -country) %>% 
+  mutate(category = str_remove(category, "2019_")) %>% 
+  group_by(country) %>% 
+  mutate(index = round(mean(value))) %>% 
+  ungroup() %>% 
+  filter(category == "gov") %>%
+  mutate(country = fct_reorder(country, value)) %>% 
+  ggplot(aes(country, value)) +
+  geom_col(fill = "white", color = "#00abff", width = .8) +
+  geom_point(aes(country, index), size = 2.5) + 
+  geom_col(aes(country, index), width = .05, color = "black") +
+  coord_flip() +
+  labs(title = "Trust in government in 2019",
+       subtitle = "Bar = trust in government, Point = overall trust index",
+       x = " ", 
+       y = " ",
+       caption = "Data: 2019 Edelman Trust Barometer Global Report") +
+  theme(plot.title = element_text(face ="bold", size = 18), 
+        plot.subtitle = element_text(size = 15))
+```
+
+```{r}
+global_11 <- c("China", "India", "Mexico", "Saudi Arabia", "Canada", "South Korea", "Us", "Germany", "France", "Japan", "Uk")
+
+edelman_2019 %>% 
+  gather(category, value, -country) %>% 
+  mutate(category = str_remove(category, "2019_")) %>% 
+  group_by(country) %>% 
+  mutate(index = round(mean(value))) %>% 
+  ungroup() %>% 
+  filter(category == "gov") %>%
+  filter(country %in% global_11) %>% 
+  mutate(country = fct_reorder(country, value)) %>% 
+  ggplot(aes(country, value)) +
+  geom_col(fill = "white", color = "#00abff", width = .8) +
+  geom_point(aes(country, index), size = 5) + 
+  geom_col(aes(country, index), width = .05, color = "black") +
+  coord_flip() +
+  labs(title = "Trust in government in 2019",
+       subtitle = "Bar = trust in government, Point = overall trust index",
+       x = " ", 
+       y = " ",
+       caption = "Data Source: 2019 Edelman Trust Barometer Global Report") +
+  theme(plot.title = element_text(face ="bold", size = 18), 
+        plot.subtitle = element_text(size = 15))
+```
+
+# Before and after the corona pandemic
+
+```{r}
+edelman_2020 %>% 
+  gather(category, value, jan_gov, may_gov) %>% 
+  mutate(category = fct_recode(category, "Jan 2019" = "jan_gov", "May 2019" = "may_gov")) %>% 
+  mutate(country = fct_relevel(country, "Global11")) %>% 
+  ggplot(aes(category, value)) + 
+  geom_line(group = 1, size = 1.5) +
+  geom_point(alpha = .5, size = 3) +
+  facet_wrap(~ country) +
+  labs(title = "Trust in government before and after Corona pandemic",
+       subtitle = "Trust in China is soaring and what happened to Japan?", 
+       x = " ", 
+       y = " ",
+       caption = "Data Source: 2020 Edelman Trust Barometer Spring Update") +
+  theme(plot.title = element_text(face ="bold", size = 18), 
+        plot.subtitle = element_text(size = 15))
+  
+```
+
+```{r}
+WDIsearch("trade") %>% 
+  as.data.frame() %>% 
+  tbl_df()
+
+trade_gdp_raw <- WDI(indicator = "NE.TRD.GNFS.ZS", extra = T) %>% filter(region != "Aggregates")
+```
+

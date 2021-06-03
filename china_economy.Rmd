@@ -1,0 +1,252 @@
+---
+title: "Untitled"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(readxl)
+library(WDI)
+library(ggrepel)
+
+theme_set(theme_light())
+```
+
+## growth rates comparisons, 1990-2015
+```{r}
+WDIsearch("gdp growth") %>% 
+  as.data.frame() %>% 
+  tbl_df() 
+
+gdp_growth_raw <- WDI(indicator = "NY.GDP.MKTP.KD.ZG", extra = T) %>% 
+  filter(region != "Aggregates") 
+
+total_pop_raw <- WDI(indicator = "SP.POP.TOTL") 
+
+gdp_growth_9110 <- gdp_growth_raw %>% 
+  filter(region != "Aggregates") %>% 
+  filter(year >= 1991, year <= 2010) %>% 
+  group_by(country) %>% 
+  summarize(avg_9110 = mean(NY.GDP.MKTP.KD.ZG))
+
+gdp_growth_1115 <- gdp_growth_raw %>% 
+  filter(region != "Aggregates") %>% 
+  filter(year >= 2011, year <= 2015) %>% 
+  group_by(country) %>% 
+  summarize(avg_1115 = mean(NY.GDP.MKTP.KD.ZG))
+
+gdp_growth <- gdp_growth_9110 %>% 
+  left_join(gdp_growth_1115, by = "country") %>% 
+  filter(avg_9110 < 20) %>% 
+  inner_join(total_pop_raw %>% filter(year == 2015), by = "country") %>% 
+  arrange(desc(SP.POP.TOTL)) %>% 
+  head(100)
+
+df <-gdp_growth %>% 
+  filter(country %in% c("China", "India", "Turkey", "United States", "Japan", "Korea, Rep.", "Brazil", "Russian Federation", "South Africa"))
+
+gdp_growth %>% 
+  ggplot(aes(avg_9110, avg_1115)) +
+  geom_point(alpha = .5) + 
+  geom_label_repel(data = df, 
+            aes(label = country)) +
+  geom_point(data = df, size = 2.5) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(title = "Average growth rates comparisons, 100 major countries", 
+       x = "Average growth, 1991-2010 (%)", 
+       y = "Average growth, 2010-2015 (%)", 
+       caption = "Data: World Development Indicators") +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+## debt-to-gdp ratio
+```{r}
+WDIsearch("capacity") %>% 
+  as.data.frame() %>% 
+  tbl_df()
+
+WDIsearch("gdp per capita") %>% 
+  as.data.frame() %>% 
+  tbl_df()
+
+stat_capa_raw <- WDI(indicator = "IQ.SCI.OVRL", extra = T) %>% filter(region != "Aggregates")
+
+df <- stat_capa_raw %>% filter(year == 2018, country == "China") 
+
+gdp_per_raw <- WDI(indicator = "NY.GDP.PCAP.KD", extra = T) %>% filter(region != "Aggregates")
+
+gdp_per_2018 <- gdp_per_raw %>% filter(year == 2018)
+
+stat_capa_gdp <- stat_capa_raw %>% 
+  filter(year == 2018) %>% 
+  left_join(gdp_per_2018, by = "country")
+
+stat_capa_gdp %>% 
+  ggplot(aes(NY.GDP.PCAP.KD, IQ.SCI.OVRL)) +
+  geom_point() + 
+  geom_smooth(method = "lm") +
+  geom_label_repel(data = stat_capa_gdp %>% filter(country == "China"), aes(label = country), hjust = 1, vjust =1) + 
+  geom_point(data = stat_capa_gdp %>% filter(country == "China") , size = 3.5, shape = 23) +
+  scale_x_log10() 
+```
+
+## The need for rebalancing from investment to consumption?
+```{r}
+WDIsearch("formation") %>% 
+  as.data.frame() %>% 
+  tbl_df()
+
+WDIsearch("households") %>% 
+  as.data.frame() %>% 
+  tbl_df()
+
+# readin data "Households and NPISHs final consumption expenditure (% of GDP)"
+consumption_gdp_raw <- WDI(indicator = "NE.CON.PRVT.ZS", extra = T) %>% filter(region != "Aggregates") 
+
+consumption_gdp_china <- consumption_gdp_raw %>% 
+  filter(country == "China", year > 1977) 
+
+consumption_gdp_china %>% 
+  ggplot(aes(year, NE.CON.PRVT.ZS)) +
+  geom_line()
+
+# readin data "Gross fixed capital formation"
+investment_gdp_raw <- WDI(indicator = "NE.GDI.FTOT.ZS", extra = T) %>% filter(region != "Aggregates")
+
+investment_gdp_china <- investment_gdp_raw %>% 
+  filter(country == "China", year > 1977) 
+
+investment_gdp %>% 
+  ggplot(aes(year, NE.GDI.FTOT.ZS)) +
+  geom_line()
+
+# Plotting domestic consumption and investment over time since reform and opening up 
+consumption_gdp_china %>% 
+  left_join(investment_gdp_china, by = c("country", "year")) %>% 
+  gather(category, value, NE.CON.PRVT.ZS, NE.GDI.FTOT.ZS) %>%
+  mutate(category = fct_recode(category, "Consumption" = "NE.CON.PRVT.ZS", 
+                               "Investment" = "NE.GDI.FTOT.ZS"), 
+         value = value / 100) %>% 
+  ggplot(aes(year, value, color = category)) +
+  geom_line(size = 1.5) + 
+  scale_y_continuous(limit = c(.15, .6), 
+                     labels = scales::percent_format()) +
+  labs(title = "Domestic consumption and investment (% of GDP), 1978-2018", 
+       x = " ", 
+       y = "% of GDP", 
+       caption = "Data Source: World Bank World Development Indicators") +
+  theme(legend.position = c(0.8, 0.84), 
+        legend.title = element_blank())
+```
+## GDP and high-tech 
+```{r}
+library(janitor)
+library(ggrepel)
+
+WDIsearch("gdp per") %>% 
+  as.data.frame() %>% 
+  tbl_df() 
+
+WDIsearch("high-tech") %>% 
+  as.data.frame() %>% 
+  tbl_df() 
+
+gdp_percapita_raw <- WDI(indicator = "NY.GDP.PCAP.CD", extra = T) %>% 
+  filter(region != "Aggregates") 
+
+tech_index_cleaned <- read_csv("tech_data.csv") %>% 
+  clean_names() %>% 
+  gather(year, value, -country_iso3, -country_name, -indicator_id, -indicator, -subindicator_type) %>% 
+  mutate(year = as.numeric(str_remove(year, "x")))
+
+tech_industry_raw <- WDI(indicator = "NV.MNF.TECH.ZS.UN", extra = T) %>% 
+  filter(region != "Aggregates") 
+```
+
+
+```{r}
+tech_index_cleaned %>% 
+  filter(country_name == "China", 
+         indicator_id == 3794) %>% 
+  ggplot(aes(year, value)) +
+  geom_line(size = 1) +
+  scale_y_continuous(limits = c(.3, .45),
+                     labels = scales::percent_format()) +
+  labs(title = "Medium and high-tech manufacturing value added share (%)", 
+       x = " ", 
+       y = " ")
+```
+
+```{r}
+tech_index_joined <- tech_index_cleaned %>% 
+  inner_join(gdp_percapita_raw, by = c("year", "country_iso3" = "iso3c")) %>% 
+  filter(indicator_id == 3794, 
+         year == 2014)
+
+tech_index_joined %>% 
+  filter(value > .6)
+  
+china <- tech_index_joined %>% 
+  filter(country_name == "China")
+
+tech_index_joined %>% 
+  ggplot(aes(NY.GDP.PCAP.CD, value)) +
+  geom_point(alpha = .7) +
+  scale_x_log10() +
+  geom_smooth(method = "lm") +
+  geom_label_repel(data = china, aes(label = country_name)) +
+  geom_point(data = china, size = 3) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(title = "China can innovate?", 
+       subtitle = "High-tech value added share in total manufacturing value added, 2014 (%)",
+       x = "Per capita GDP (logged)", 
+       y = " ", 
+       caption = "Data: World Bank Indicators, TWC data") +
+  facet_wrap(~ income)
+  theme(plot.title = element_text(face = "bold", size = "18"))
+```
+
+```{r}
+library(readxl)
+library(scales)
+
+center_local <- read_excel("central_local_balance.xlsx") %>% 
+  mutate(total_rev = center_rev + local_rev, 
+         total_exp = center_exp + local_exp, 
+         local_rev_prop = local_rev / total_rev, 
+         local_exp_prop = local_exp / total_exp, 
+         local_net_prop = local_rev_prop - local_exp_prop)
+
+center_local %>% 
+  gather(local, value, local_rev, local_exp) %>% 
+  ggplot(aes(year, value, color = local)) +
+  geom_line(size = 1.2) 
+
+center_local %>% 
+  gather(local, value, local_rev, local_exp) %>% 
+  mutate(local = fct_recode(local, "収入" = "local_rev", "支出" = "local_exp"), 
+         local = fct_relevel(local, "収入", "支出")) %>% 
+  ggplot(aes(x = year)) +
+  geom_line(aes(y = value, linetype = local), size = 1.2) +
+  geom_col(aes(y = local_net_prop * 100000), alpha = .5) +
+  scale_y_continuous(name = "地方政府の収入と支出（総額）", 
+                     labels = scales::comma_format(),
+                     sec.axis = sec_axis(~./10000, name = "地方政府の収支比率（％）")) + 
+  labs(title = "1994年の税制改革と地方財政の逼迫",
+       caption = "データソース: 中国統計年鑑", 
+       x = " ") +
+  theme_bw(base_family = "HiraKakuProN-W6") +
+  theme(plot.title = element_text(face = "bold"), 
+        legend.position = "bottom", 
+        legend.title = element_blank()) +
+  geom_vline(xintercept = 1994, color = "red") 
+
+```
+
+

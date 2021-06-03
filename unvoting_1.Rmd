@@ -1,0 +1,132 @@
+---
+title: "Untitled"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(haven)
+library(WDI)
+theme_set(theme_light())
+
+unda_raw <- read_csv("UNdata.csv")
+ideal_point_raw <- read_dta("Idealpoints.dta")
+
+WDIsearch("gdp per capita") %>% View()
+
+gdp_capita <- WDI(indicator = "NY.GDP.PCAP.PP.CD", start = 2015, end = 2015, extra = T) %>% 
+  filter(region != "Aggregates")
+```
+
+Trends in ideal point distance between the US and China in UNGS Voting
+```{r}
+ideal_point_raw %>% 
+  filter(countryabb %in% c("USA", "CHN"), 
+         year > 1970) %>% 
+  select(countryabb, year, idealpoint) %>% 
+  spread(key = countryabb, value = idealpoint) %>% 
+  mutate(distance = USA - CHN) %>% 
+  ggplot(aes(year, distance)) +
+  geom_line(size = 1.5) +
+  geom_smooth(aes(method = "lowess")) +
+  scale_y_continuous(limits = c(1, 5)) + 
+  theme_bw(base_family = "HiraKakuProN-W6") +
+  labs(title = "図 6.3 国連総会投票における米中のアイディアル・ポイントの距離 (1971-2018)", 
+       x = " ",
+       y = "ideal point distance (UNGA votes)", 
+       caption = "[出典] Bailey, Strezhnev and Voeten 2017") 
+  
+
+jpn_usa_distance <- ideal_point_raw %>% 
+  filter(countryabb %in% c("USA", "JPN"), 
+         year > 1970) %>% 
+  select(countryabb, year, idealpoint) %>% 
+  spread(key = countryabb, value = idealpoint) %>% 
+  mutate(distance = USA - JPN) 
+```
+
+```{r}
+ideal_point_raw %>%
+  filter(countryabb %in% c("CHN", "RUS"), 
+         year > 1970) %>% 
+  select(countryabb, year, idealpoint) %>% 
+  spread(key = countryabb, value = idealpoint) %>% 
+  mutate(distance = CHN - RUS) %>% 
+  ggplot(aes(year, distance)) +
+  geom_line(size = 1.5) +
+  # geom_smooth(aes(method = "loess")) 
+  scale_y_continuous(limits = c(-4, 3)) +
+  labs(title = "The United Front against the US-led Liberal International Order?",
+       subtitle = "Sino-Russian preference gap has been shrinking since the mid-1990s",
+       x = " ", 
+       y = "Ideal point distance", 
+       caption = "Data Source: Bailey et al (2017)") +
+  theme(plot.title = element_text(face = "bold"))
+
+ideal_point_raw %>%
+  filter(countryabb %in% c("CHN", "RUS"), 
+         year > 1970) %>% 
+  select(countryabb, year, idealpoint) %>% 
+  spread(key = countryabb, value = idealpoint) %>% 
+  mutate(distance = CHN - RUS) %>% 
+  ggplot(aes(year, distance)) +
+  geom_line(size = 1.5) +
+  # geom_smooth(aes(method = "loess")) +
+  scale_y_continuous(limits = c(-4, 3)) +
+  theme_bw(base_family = "NanumMyeongjo") +
+  labs(title = "[그림-12] 글로벌 이슈에 대한 중러간 국가선호격차",
+       subtitle = "국가선호격차: UN 총회에서의 투표행동을 기반으로 산출한 양국의 ideal point의 차 \n (0에 가까울수록 양국간 국가선호의 격차가 작음을 의미)",
+       x = " ", 
+       y = "국가선호격차", 
+       caption = "데이터 출처: Bailey et al (2017)")
+```
+
+```{r}
+library(countrycode)
+library(ggrepel)
+
+ideal_point_2015 <- 
+  ideal_point_raw %>%
+  filter(year == "2015") %>% 
+  mutate(iso3c = countrycode(ccode, "cown", "iso3c"))
+
+ideal_point_joined <- ideal_point_2015 %>% 
+  left_join(gdp_capita, by = "iso3c") %>% 
+  filter(!is.na(region)) %>% 
+  select(iso3c, idealpoint, region)
+
+china_usa <- ideal_point_joined %>% 
+  filter(iso3c %in% c("USA", "CHN")) %>% 
+  mutate(iso3c = fct_recode(iso3c, "米国" = "USA", "中国" = "CHN")) %>% 
+  mutate(region = fct_recode(region, 
+                             "アジア太平洋" = "East Asia & Pacific", 
+                             "北米" = "North America"))
+
+# plotting Japanese
+ideal_point_joined %>% 
+  mutate(region = fct_recode(region, 
+                             "サブサハラアフリカ" = "Sub-Saharan Africa", 
+                             "南アジア" = "South Asia",
+                             "北米" = "North America", 
+                             "中東・北アフリカ" = "Middle East & North Africa", 
+                             "南米" = "Latin America & Caribbean", 
+                             "ヨーロッパ・中央アジア" = "Europe & Central Asia", 
+                             "アジア太平洋" = "East Asia & Pacific")) %>% 
+  mutate(region = fct_relevel(region, "アジア太平洋", "南アジア", "中東・北アフリカ", "サブサハラアフリカ", "南米", "ヨーロッパ・中央アジア", "北米")) %>% 
+  ggplot(aes(x = idealpoint, y = region)) +
+  geom_jitter() +
+  geom_text_repel(data = china_usa, aes(label = iso3c), family = "HiraKakuProN-W6", hjust = 1, vjust = 1) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(title = "図 6.3  国連総会における投票行動：各国のアイディアル・ポイントの分布（2015年)", 
+       caption = "[注] 各々の点は特定地域の国家のアイディアル・ポイント（０は各国の平均）\n 
+       [出典] Bailey, Strezhnev and Voeten 2017", 
+       y = " ") +
+  theme_bw(base_family = "HiraKakuProN-W6")
+```
+

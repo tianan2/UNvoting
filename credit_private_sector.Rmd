@@ -1,0 +1,75 @@
+---
+title: "china_private_sector"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE, message=FALSE}
+library(tidyverse)
+library(WDI)
+theme_set(theme_light())
+options(scipen = 999)
+
+WDIsearch("private sector") %>% 
+  as.data.frame() %>% 
+  tbl_df() 
+```
+
+```{r}
+# Domestic credit to private sector (% of GDP)
+credit_private_raw <- WDI(indicator = "FS.AST.PRVT.GD.ZS", extra = T) %>% 
+  filter(region != "Aggregates") 
+```
+
+```{r}
+credit_private_raw %>% 
+  filter(country == "China", 
+         year > 1978) %>% 
+  ggplot(aes(year, FS.AST.PRVT.GD.ZS)) +
+  geom_line(size = 1)
+```
+```{r}
+WDIsearch("gdp per capita") %>% 
+  as.data.frame() %>% 
+  tbl_df() 
+
+gdp_percapita <- WDI(indicator = "NY.GDP.PCAP.PP.CD", extra = T) %>% 
+  filter(region != "Aggregates") 
+
+credit_private_2018 <- credit_private_raw %>% 
+  filter(year == 2018, 
+         !is.na(FS.AST.PRVT.GD.ZS))
+
+percapita_2018 <- gdp_percapita %>% 
+  filter(year == 2018, 
+         !is.na(NY.GDP.PCAP.PP.CD))
+```
+
+```{r}
+library(ggrepel)
+
+credit_private_2018 <- credit_private_2018 %>% 
+  left_join(percapita_2018, by = "country") %>% 
+  mutate(china = ifelse(country == "China", country, " "), 
+         oecd = ifelse(country %in% oecd_countries, country, " ")) 
+
+ggplot(credit_private_2018, aes(NY.GDP.PCAP.PP.CD, FS.AST.PRVT.GD.ZS, label = china)) +
+  geom_point(color = ifelse(credit_private_2018$oecd == " ", "grey50", "red"), 
+             size = 2.5) +
+  scale_x_log10() +
+  geom_text(check_overlap = FALSE) +
+  labs(title = "Private sector in China is hard to get bank loan? Not any more", 
+       subtitle = "OECD countries = Red",
+       y = "Domestic credit to private sector (% of GDP)", 
+       x = "GDP per capita", 
+       caption = "Data Source = WDI Indicators")
+  
+oecd_countries <- c("Austria", "Australia", "Belgium", "Chile", "Colombia", "Czech Republic", "Germany", "Denmark", "Estonia", "Finland", "France", "Greece", "Hungary", "United Kingdom", "Ireland", "Israel", "Italy", "Japan", "Korea, Rep.", "Lituania", "Latvia", "Luxembourg", "Mexico", "Netherlands", "New Zealand", "Norway", "Poland", "Portugal", "Spain", "Slovenia", "Slovak Republic", "Sweden", "United States", "Turkey")
+
+```
+

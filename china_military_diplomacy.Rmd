@@ -1,0 +1,264 @@
+---
+title: "Untitled"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(readxl)
+library(janitor)
+theme_set(theme_light())
+
+mil_diplomacy_raw <- read_excel("PLA-diplomacy-database.xlsx", sheet = 2) %>% clean_names()
+```
+
+# plot total military diplomacy interactions over time
+
+```{r}
+library(extrafont)
+
+mil_diplomacy_raw %>% 
+  group_by(year) %>% 
+  count(activity_category) %>% 
+  filter(year > 2002) %>% 
+  ggplot(aes(year, n, fill = activity_category)) +
+  geom_col() +
+  theme(legend.title = element_blank(), 
+        legend.position = c(0.6, 0.84)) +
+  labs(title = "Total Military Diplomacy Interactions by Activity (2003-2016)", 
+       x = "", 
+       y = "", 
+       caption = "Data: Allen et al (2016)") +
+  theme(legend.title = element_blank(), 
+        legend.position = c(0.25, 0.84), 
+        plot.title = element_text(face = "bold"))
+```
+
+# plot PLA international military exercises over time 
+
+```{r}
+mil_diplomacy_raw %>% 
+  filter(activity_category == "Military Exercise") %>% 
+  group_by(year) %>% 
+  count(activity_type) %>% 
+  ggplot(aes(year, n, fill = activity_type)) +
+  geom_col() +
+  scale_x_continuous(limits = c(2001, 2017), 
+                     breaks = seq(2002, 2016, 2)) +
+  scale_fill_grey() +
+  labs(title = "Figure 3. Total PLA International Military Exercises by Type (2002-2016)", 
+       x = "", 
+       y = "", 
+       caption = "Data Source: Allen et al (2016)") +
+  theme(legend.title = element_blank(), 
+        legend.position = c(0.25, 0.80))
+
+mil_diplomacy_raw %>% 
+  filter(activity_category == "Military Exercise") %>% 
+  group_by(year) %>% 
+  count(activity_type) %>% 
+  mutate(activity_type = recode(activity_type, 
+                                "Military Exercise - Bilateral" = "군사훈련 (양자)", 
+                                "Military Exercise - Multilateral" = "군사훈련 (다자)")) %>% 
+  ggplot(aes(year, n, fill = activity_type)) +
+  geom_col() +
+  scale_x_continuous(limits = c(2001, 2017), 
+                     breaks = seq(2002, 2016, 2)) +
+  scale_fill_grey() +
+  theme_bw(base_family = "NanumMyeongjo") +
+  labs(title = "[그림-13] 중국의 합동군사훈련 (양자간/다자간 분류)", 
+       x = "", 
+       y = "", 
+       caption = "데이터 출처: Allen et al (2016)") +
+  theme(legend.title = element_blank(), 
+        legend.position = c(0.25, 0.80))
+
+```
+
+# plot military interactions in Asia by type 
+
+```{r}
+mil_diplomacy_raw %>% 
+  filter(str_detect(geographic_region, "Asia"), 
+         year > 2002) %>% 
+  group_by(year) %>% 
+  count(activity_category) %>% 
+  ggplot(aes(year, n, fill = activity_category)) +
+  geom_col() +
+  scale_x_continuous(limits = c(2002, 2017), 
+                     breaks = seq(2003, 2016, 1)) +
+  labs(title = "Figure 2. Military Diplomacy Interactions by Activity (2003-2016)", 
+       x = " ", 
+       y = " ", 
+       caption = "Data Source: Allen et al (2016)") +
+  theme(legend.title = element_blank(), 
+        legend.position = c(0.25, 0.80), 
+        plot.title = element_text(face = "bold"))
+```
+
+# plot military diplomacy interactions by sub-region in Asia (2003-2016)
+
+```{r}
+mil_diplomacy_raw %>% 
+  filter(str_detect(geographic_region, "Asia"), 
+         year > 2002) %>% 
+  group_by(year, geographic_region) %>% 
+  count(activity_category) %>% 
+  ggplot(aes(year, n, fill = activity_category)) +
+  geom_col() +
+  facet_wrap(~ geographic_region) +
+  labs(title = "그림 3. 중국의 대 아시아 군사외교 (2003-2016)", 
+       x = "", 
+       y = "", 
+       caption = "Data: Allen et al (2006)") +
+  theme_bw(base_family = "NanumMyeongjo") +
+  theme(legend.title = element_blank(), 
+        legend.position = "bottom", 
+        plot.title = element_text(face = "bold"))
+
+```
+
+```{r}
+mil_diplomacy_raw %>% 
+  filter(partner_country != "United States") %>% 
+  mutate(u_s_alliance_status = if_else(str_detect(u_s_collective_defense_status, "Treaty"), 
+                                       "Ally", 
+                                       "Non-ally")) %>% 
+  filter(str_detect(geographic_region, "Asia"), 
+         year > 2002) %>% 
+  group_by(year) %>% 
+  count(u_s_alliance_status) %>% 
+  mutate(u_s_alliance_status = recode(u_s_alliance_status, 
+                                      "Ally" = "미국의 동맹국", 
+                                      "Non-ally" = "미국의 비동맹국")) %>% 
+  ggplot(aes(year, n, linetype = u_s_alliance_status)) +
+  geom_point() +
+  geom_line(size = 1.2) +
+  scale_x_continuous(limits = c(2003, 2016), 
+                     breaks = seq(2003, 2016, 1)) +
+  theme_bw(base_family = "NanumMyeongjo") +
+  labs(title = "[그림-10] 중국의 아시아 지역국가들과의 군사교류 (2003-2016)", 
+       x = "", 
+       y = "연간활동총계", 
+       caption = "데이터 출처: Allen et al (2016)") +
+  theme(legend.title = element_blank(), 
+        legend.position = c(0.25, 0.75)) 
+```
+
+
+```{r}
+top_partner <- mil_diplomacy_raw %>% 
+  count(partner_country, sort = T) %>% 
+  head(5)
+
+mil_diplomacy_raw %>% 
+  semi_join(top_partner, by = "partner_country") %>%
+  filter(year > 2002) %>% 
+  group_by(year) %>% 
+  count(partner_country) %>% 
+  mutate(partner_country = recode(partner_country, 
+                                  "Russia" = "러시아", 
+                                  "United States" = "미국", 
+                                  "Pakistan" = "파키스탄", 
+                                  "Australia" = "호주", 
+                                  "Thailand" = "태국")) %>% 
+  mutate(partner_country = fct_relevel(partner_country, "러시아", "미국", "파키스탄")) %>% 
+  ggplot(aes(year, n, fill = partner_country)) +
+  geom_col() +
+  scale_x_continuous(limits = c(2002, 2017), 
+                     breaks = seq(2003, 2016, 1)) +
+  scale_fill_grey() +
+  theme_bw(base_family = "NanumMyeongjo") +
+  labs(title = "[그림-11] 중국의 군사교류의 전개 (상위 5개국)", 
+       x = " ", 
+       y = "연간활동총계", 
+       fill = " ",
+       caption = "데이터 출처: Allen et al (2016)") +
+  theme(legend.title = element_blank(), 
+        legend.position = c(0.25, 0.75))
+
+mil_diplomacy_raw %>% 
+  semi_join(top_partner, by = "partner_country") %>%
+  filter(year > 2002) %>% 
+  group_by(year) %>% 
+  count(partner_country) %>% 
+  # mutate(partner_country = recode(partner_country,
+  #                                 "Russia" = "러시아",
+  #                                 "United States" = "미국",
+  #                                 "Pakistan" = "파키스탄",
+  #                                 "Australia" = "호주",
+  #                                 "Thailand" = "태국")) %>%
+  mutate(partner_country = fct_relevel(partner_country, "Russia", "United States", "Pakistan")) %>% 
+  ggplot(aes(year, n, fill = partner_country)) +
+  geom_col() +
+  scale_x_continuous(limits = c(2002, 2017), 
+                     breaks = seq(2003, 2016, 1)) +
+  # scale_fill_grey() +
+  # theme_bw(base_family = "NanumMyeongjo") +
+  labs(title = "China's Top Five Strategic Partners (2003-2016)", 
+       x = " ", 
+       y = "Number of interactions", 
+       fill = " ",
+       caption = "Data Source: Allen et al (2016)") +
+  theme(legend.title = element_blank(), 
+        legend.position = c(0.25, 0.75), 
+        plot.title = element_text(face = "bold"))
+```
+
+
+```{r}
+mil_diplomacy_raw %>% 
+  filter(partner_country == "Russia", 
+         year > 2002) %>%
+  group_by(year) %>% 
+  count(activity_category) %>%
+  mutate(activity_category = recode(activity_category, 
+                                    "Military Exercise" = "군사훈련", 
+                                    "Senior Level Visit" = "고위급 방문", 
+                                    "Naval Port Call" = "해군기항통지")) %>% 
+  ggplot(aes(year, n, fill = activity_category)) +
+  geom_col() +
+  scale_x_continuous(breaks = seq(1994, 2016, 2)) +
+  scale_fill_grey() +
+  theme_bw(base_family = "NanumMyeongjo") +
+  theme(legend.position = c(0.25, 0.8)) +
+  labs(title = "[그림-7] 중러 군사협력의 현황 (활동내용 분류)", 
+       x = " ", 
+       y = "연간 활동 총계", 
+       fill = " ", 
+       caption = "데이터 출처: Allen et al (2016)")
+```
+
+```{r}
+library(readxl)
+library(lubridate)
+library(stringr)
+library(scales)
+
+senkaku <- read_excel("china-senkaku.xlsx")
+
+senkaku %>% 
+  mutate(date = ymd(date)) %>% 
+  gather(category, value, territory, contiguous_zone) %>% 
+  mutate(category = recode(category, territory = "주변 12해리이내 ('영해')", 
+                           contiguous_zone = "주변 24해리 이내 ('접속수역')")) %>% 
+  ggplot(aes(date, value)) +
+  geom_point() +
+  geom_line() +
+  geom_vline(xintercept = as.Date("2012-09-30"), linetype = "dotted", color = "red", size = 1) +
+  scale_x_date(breaks = "1 year", labels = date_format("%Y/%m")) +
+  facet_wrap(~ category, nrow = 2, scales = "free") +
+  theme_bw(base_family = "NanumMyeongjo") +
+  labs(title = "[그림-6] 센카쿠/댜오위다오 주변해역의 중국 정부 및 기타 선박 진입 동향", 
+       x = " ", 
+       y = "확인 선박 수", 
+       caption = "데이터 출처: 일본 외무성 홈페이지 (https://www.mofa.go.jp/region/page23e_000021.html, accessed on December 10, 2020)")
+
+```
+

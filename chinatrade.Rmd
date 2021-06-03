@@ -1,0 +1,198 @@
+---
+title: "Untitled"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(readxl)
+theme_set(theme_light())
+
+treaties_raw <- read_csv("https://www.designoftradeagreements.org/media/filer_public/c9/bb/c9bba276-512f-4dac-aa1e-685915aebd3d/list_of_treaties_01_05.csv") %>% mutate(typememb = as.factor(typememb))
+
+depth_raw <- read_csv("https://www.designoftradeagreements.org/media/filer_public/e3/1b/e31bf71e-8141-4f71-a3dc-499756b1bb04/depth_version_01_05.csv")
+```
+
+# general trend of TA
+```{r}
+treaties_raw %>% 
+  count(year) %>% 
+  ggplot(aes(year, n)) +
+  geom_line(size = .8) +
+  scale_x_continuous(limits = c(1945, 2020), 
+                     breaks = seq(1950, 2020, 10)) +
+  labs(title = "The Era of FTA? Number of Trade Agreements over time", 
+       x = " ", 
+       y = " ", 
+       caption = "Data Source: Design of Trade Agreement (DESTA)")
+
+depth_raw %>% 
+  count(year) %>% 
+  ggplot(aes(year, n)) +
+  geom_line(size = .8) +
+  scale_x_continuous(limits = c(1945, 2020), 
+                     breaks = seq(1950, 2020, 10)) +
+  labs(title = "The End of the Cold War and Trade Liberalization", 
+       subtitle = "# of Preferential Trade Agreement", 
+       x = " ", 
+       y = " ", 
+       caption = "Data Source: Design of Trade Agreement (DESTA)")
+
+depth_raw %>% 
+  count(year, full_fta) %>% 
+  mutate(full_fta = fct_recode(as.character(full_fta), "Full FTA" = "1", "Partial FTA" = "0")) %>% 
+  ggplot(aes(year, n, fill = full_fta)) +
+  geom_col() +
+  scale_x_continuous(limits = c(1945, 2020), 
+                     breaks = seq(1950, 2020, 10)) +
+  labs(title = "The Era of FTA", 
+       subtitle = "Breakdown of PTA by the stats of FTA", 
+       x = " ", 
+       y = " ", 
+       caption = "Data Source: Design of Trade Agreement (DESTA)") +
+  theme(legend.position = "bottom", 
+        legend.title = element_blank())
+
+depth_raw %>% 
+  group_by(year) %>% 
+  summarize(avg_depth = mean(depth_index)) %>% 
+  ggplot(aes(year, avg_depth)) +
+  geom_line(size = .8) +
+  scale_x_continuous(limits = c(1945, 2020), 
+                     breaks = seq(1950, 2020, 10)) +
+  labs(title = "Deepening market integration",
+       subtitle = "Depth of FTA over time",
+       x = " ", 
+       y = " ", 
+       caption = "Data Source: Design of Trade Agreement (DESTA)")
+```
+# Trade agreements by region
+
+```{r}
+treaties_raw %>% 
+  count(year, regioncon) %>% 
+  ggplot(aes(year, n, fill = regioncon)) +
+  geom_area() +
+  scale_x_continuous(limits = c(1945, 2020), 
+                     breaks = seq(1950, 2020, 10))
+
+treaties_raw %>% 
+  filter(regioncon == "Asia") %>% 
+  count(year) %>% 
+  ggplot(aes(year, n)) +
+  geom_col() +
+  scale_x_continuous(limits = c(1945, 2020), 
+                     breaks = seq(1950, 2020, 10))
+```
+
+# Trade agreements by type of membership
+
+```{r}
+treaties_raw %>% 
+  select(year, typememb) %>% 
+  filter(!typememb %in% c(5, 6, 7)) %>%
+  mutate(typememb = fct_recode(typememb, "bilateral" = "1", 
+                               "plurilateral" = "2", 
+                               "plurilateral" = "3", 
+                               "region-to-region" = "4")) %>% 
+  count(year, typememb) %>% 
+  ggplot(aes(year, n, fill = typememb)) +
+  geom_col() +
+  scale_x_continuous(limits = c(1945, 2020), 
+                     breaks = seq(1950, 2020, 10)) +
+  theme(legend.title = element_blank(), 
+        legend.position = "bottom") +
+  labs(title = "Bilateralism or Multilateralism? PTA by type of agreements over time", 
+       x = " ", 
+       y = " ", 
+       caption = "Data Source: Design of Trade Agreement (DESTA)")
+```
+
+
+```{r}
+depth_raw %>% 
+  filter(str_detect(name, "China")) %>% 
+  mutate(name = recode(name, "Association of Southeast Asian Nations China" = "ASEAN-China", 
+                       "Association of Southeast Asian Nations China Services" = "ASEAN-China (services)")) %>% 
+  mutate(name = fct_reorder(name, year)) %>% 
+  ggplot(aes(name, depth_index)) +
+  geom_line(group = "name", size = .8) +
+  scale_y_continuous(limits = c(0, 7)) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(x = "Free Trade Agreement",
+       y = "Depth",
+       title = "Figure. Depth of China's Foreign Trade Agreements Over Time", 
+       caption = "Data Source: DESTA project")
+
+depth_raw %>% 
+  filter(str_detect(name, "Korea")) %>% 
+  ggplot(aes(year, depth_index)) +
+  geom_line() +
+  scale_y_continuous(limits = c(0, 7))
+```
+
+```{r}
+library(WDI)
+
+WDIsearch("debt") %>% 
+  as.data.frame() %>% 
+  tbl_df() %>% 
+  filter(str_detect(name, "GDP")) %>% View()
+
+gov_debt_raw <- WDI(indicator = "DP.DOD.DECT.CR.GG.Z1", extra = T) 
+
+gov_debt_raw %>% 
+  filter(country == "China") %>% View()
+```
+
+```{r}
+WDIsearch("gdp growth") %>% 
+  as.data.frame() %>% 
+  tbl_df() 
+
+WDIsearch("total population") %>% 
+  as.data.frame() %>% 
+  tbl_df() %>% View()
+
+gdp_growth_raw <- WDI(indicator = "NY.GDP.MKTP.KD.ZG", extra = T) %>% 
+  filter(region != "Aggregates") %>% View()
+
+gdp_growth_9110 <- gdp_growth_raw %>% 
+  filter(region != "Aggregates") %>% 
+  filter(year >= 1991, year <= 2010) %>% 
+  group_by(country) %>% 
+  summarize(avg_9110 = mean(NY.GDP.MKTP.KD.ZG))
+
+gdp_growth_1115 <- gdp_growth_raw %>% 
+  filter(region != "Aggregates") %>% 
+  filter(year >= 2011, year <= 2015) %>% 
+  group_by(country) %>% 
+  summarize(avg_1115 = mean(NY.GDP.MKTP.KD.ZG))
+
+gdp_growth <- gdp_growth_9110 %>% 
+  left_join(gdp_growth_1115, by = "country") %>% 
+  filter(avg_9110 < 20) %>% View()
+
+df <-gdp_growth %>% 
+  filter(country %in% c("China", "India", "Turkey", "United States", "Japan", "Korea, Rep.", "Brazil", "Russian Federation", "South Africa"))
+
+library(ggrepel)
+
+gdp_growth %>% 
+  ggplot(aes(avg_9110, avg_1115)) +
+  geom_point(alpha = .5) + 
+  geom_label_repel(data = df, 
+            aes(label = country), 
+            check_overlap = T) +
+  geom_point(data = df, size = 2.5) +
+  labs(title = "Average growth rates comparisons", 
+       x = "Average growth, 1991-2010 (%)", 
+       y = "Average growth, 2010-2015 (%)")
+```
+

@@ -1,0 +1,146 @@
+---
+title: "UNHCR Refugee"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+theme_set(theme_light())
+
+library(janitor)
+
+refugee_raw <- read_csv("~/Downloads/unhcr_popstats_export_time_series_all_data.csv", skip = 3) %>% rename("residence" = "Country / territory of asylum/residence") %>% clean_names() %>% mutate(residence_region = countrycode(residence, origin = "country.name", destination = "region", nomatch = NULL)) %>% mutate(origin_region = countrycode(origin, origin = "country.name", destination = "region", nomatch = NULL))
+```
+
+```{r}
+refugee_raw %>% 
+  group_by(year) %>% 
+  summarize(total_pop = sum(value, na.rm = T)) %>% 
+  ggplot(aes(year, total_pop)) +
+  geom_line(size = .8)
+```
+
+```{r}
+refugee_raw %>% 
+  group_by(year, population_type) %>%
+  summarize(total_pop = sum(value, na.rm = TRUE)) %>% 
+  ggplot(aes(year, total_pop, fill = population_type)) +
+  geom_col() +
+  scale_x_continuous(limits = c(1950, 2020), 
+                     breaks = seq(1950, 2020, 10)) +
+  scale_y_continuous(labels = scales::comma) +
+  theme(legend.position = "bottom") +
+  labs(x = " ", 
+       y = "# of population of concern",
+       fill = " ",
+       caption = "Data: UNHCR Statistics Yearbook")
+
+refugee_raw %>% 
+  group_by(year, origin_region) %>%
+  summarize(total_pop = sum(value, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  mutate(origin_region = fct_lump(origin_region, 5)) %>% 
+  ggplot(aes(year, total_pop, fill = origin_region)) +
+  geom_col() +
+  scale_x_continuous(limits = c(1950, 2020), 
+                     breaks = seq(1950, 2020, 10)) +
+  scale_y_continuous(labels = scales::comma) +
+  theme(legend.position = "bottom") +
+  labs(x = " ", 
+       y = "# of population of concern",
+       fill = " ",
+       caption = "Data: UNHCR Statistics Yearbook")
+
+refugee_raw %>% 
+  count(year, origin, sort = T)
+
+refugee_raw %>% 
+  count(population_type, sort = T)
+```
+```{r}
+idp_summarized <- refugee_raw %>% 
+  filter(population_type == "Internally displaced persons") %>% 
+  group_by(year, origin) %>% 
+  summarize(total_number = sum(value)) %>% 
+  ungroup()
+
+idp_summarized %>% 
+  group_by(decade = year - (year %% 10), origin) %>% 
+  summarize(total = sum(total_number)) %>% 
+  top_n(5) %>% 
+  ungroup() %>% 
+  mutate(origin = fct_reorder(origin, total)) %>% 
+  ggplot(aes(origin, total)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::comma) +
+  coord_flip() +
+  facet_wrap(~ as.character(decade)) +
+  labs(title = "Countries faced with the worst internal displacement situation", 
+       y = "# of population", 
+       x = " ", 
+       caption = "Data: UNHCR Statistics Yearbook") +
+  theme(plot.title = element_text(face = "bold"))
+
+```
+```{r}
+library(countrycode)
+
+refugee_raw %>% 
+  filter(residence_region %in% c("East Asia & Pacific", "South Asia"), 
+         origin_region %in% c("East Asia & Pacific", "South Asia"))
+
+asia_2018_origin <- refugee_raw %>% 
+  filter(year == 2018) %>% 
+  filter(residence_region %in% c("East Asia & Pacific", "South Asia"), 
+         origin_region %in% c("East Asia & Pacific", "South Asia")) %>% 
+  group_by(origin, population_type) %>% 
+  summarize(total = sum(value, na.rm = TRUE)) %>% 
+  ungroup()
+
+asia_2018_origin %>% 
+  group_by(origin) %>% 
+  mutate(year_total = sum(total)) %>% 
+  ungroup() %>% 
+  mutate(origin = fct_reorder(origin, year_total)) %>% 
+  filter(year_total > 150000) %>%
+  ggplot(aes(origin, year_total, fill = population_type)) +
+  geom_col() +
+  coord_flip() +
+  scale_y_continuous(labels = scales::comma)
+```
+
+```{r}
+asia_2018_residence <- refugee_raw %>% 
+  filter(year == 2018) %>% 
+  filter(residence_region %in% c("East Asia & Pacific", "South Asia"), 
+         origin_region %in% c("East Asia & Pacific", "South Asia")) %>% 
+  group_by(residence, population_type) %>% 
+  summarize(total = sum(value, na.rm = TRUE)) %>% 
+  ungroup()
+
+asia_2018_residence %>% 
+  filter(population_type %in% c("Asylum-seekers", "Refugees (incl. refugee-like situations)")) %>% 
+  group_by(residence) %>% 
+  mutate(year_total = sum(total)) %>% 
+  ungroup() %>% 
+  arrange(desc(year_total)) %>% 
+  filter(year_total > 100) %>% 
+  mutate(residence = fct_reorder(residence, year_total)) %>% 
+  ggplot(aes(residence, year_total, fill = population_type)) +
+  geom_col() +
+  coord_flip() +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Territories of Residence (Asia, 2018)", 
+       x = " ", 
+       y = "# of population of concern", 
+       caption = "Data: UNHCR") +
+  theme(legend.title = element_blank(), 
+        legend.position = "bottom")
+```
+
